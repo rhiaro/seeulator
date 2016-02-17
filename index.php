@@ -99,14 +99,60 @@ function context(){
 }
 
 function form_to_json($post){
-  // ToDO
+
   $context = context();
   $data = array_merge($context, $post);
-  unset($data['consume']);
-  $data["@type"] = array("blog:Consumption");
+  unset($data['create']);
+  
+  // Datetimes
   $data['as:published'] = $post['year']."-".$post['month']."-".$post['day']."T".$post['time'].$post['zone'];
   unset($data['year']); unset($data['month']); unset($data['day']); unset($data['time']); unset($data['zone']);
-  if(isset($post['image'])) $data['as:image'] = array("@id" => $post['image'][0]);
+  $data['as:startTime'] = $post['startyear']."-".$post['startmonth']."-".$post['startday']."T".$post['starttime'].$post['startzone'];
+  unset($data['startyear']); unset($data['startmonth']); unset($data['startday']); unset($data['starttime']); unset($data['startzone']);
+  $data['as:endTime'] = $post['endyear']."-".$post['endmonth']."-".$post['endday']."T".$post['endtime'].$post['endzone'];
+  unset($data['endyear']); unset($data['endmonth']); unset($data['endday']); unset($data['endtime']); unset($data['endzone']);
+  
+  // Types
+  if(isset($data["as:origin"]) && isset($data["as:target"]) && isset($data["as:startTime"]) && isset($data["as:endTime"])){
+    $data["@type"] = array("as:Travel");
+  }elseif(isset($data["as:startTime"]) && isset($data["as:endTime"]) && isset($data["as:location"])){
+    if(isset($data["as:inReplyTo"])){
+      $data["@type"] = array("as:Accept");
+    }else{
+      $data["@type"] = array("as:Event");
+    }
+  }
+  
+  // URIs
+  $uris = array("as:image", "as:target", "as:origin", "as:location");
+  foreach($uris as $uri){
+    unset($data[$uri]);
+    if(isset($post[$uri]) && strlen($post[$uri]) > 0){
+      $data[$uri] = array("@id" => $post[$uri]);
+    }
+  }
+  $multiuris = array("as:inReplyTo");
+  foreach($multiuris as $muri){
+    unset($data[$muri]);
+    if(isset($post[$muri]) && strlen($post[$muri]) > 0) {
+      foreach($post[$muri] as $u){
+        $data[$muri][] = array("@id" => $u);
+      }
+    }
+  }
+  
+  if(isset($post['moretags'])){
+    if(!isset($post['as:tag'])) $post['as:tag'] = array();
+    $values = explode(",", $post['moretags']);
+		$values = array_map('trim', $values);
+		$data['as:tag'] = array_merge($post['as:tag'], $values);
+		unset($data['moretags']);
+  }
+  
+  if(!in_array("rsvp", $data['as:tag'])){
+    unset($data['blog:rsvp']);
+  }
+  
   $json = stripslashes(json_encode($data, JSON_PRETTY_PRINT));
   return $json;
 }
@@ -126,12 +172,13 @@ function post_to_endpoint($json, $endpoint){
 }
 
 if(isset($_POST['create'])){
-  if(isset($_SESSION['me'])){
+  //if(isset($_SESSION['me'])){
     $endpoint = discover_endpoint($_SESSION['me']);
-    $result = post_to_endpoint(form_to_json($_POST), $endpoint);
-  }else{
+    //$result = post_to_endpoint(form_to_json($_POST), $endpoint);
+    $result = form_to_json($_POST);
+  /*}else{
     $errors["Not signed in"] = "You need to sign in to post.";
-  }
+  }*/
 }
 
 ?>
@@ -144,7 +191,7 @@ if(isset($_POST['create'])){
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style type="text/css">
       pre { max-height: 4em; overflow: auto; }
-      #time, #zone { max-width: 6em; }
+      #time, #zone, #starttime, #startzone, #endtime, #endzone { max-width: 6em; }
     </style>
   </head>
   <body>
@@ -180,68 +227,68 @@ if(isset($_POST['create'])){
           <input type="radio" name="blog:rsvp" value="no" id="rsvpno" /> <label for="rsvpno">No</label>
         </p>
         <p><label for="location" class="neat">Location</label> <input type="text" name="as:location" id="location" class="neat"  value="http://dbpedia.org/resource/"/></p>
-        <p><label for="startLocation" class="neat">Start Location</label> <input type="text" name="blog:startLocation" id="startLocation" class="neat" value="http://dbpedia.org/resource/"/></p>
-        <p><label for="endLocation" class="neat">End Location</label> <input type="text" name="blog:endLocation" id="endLocation" class="neat"  value="http://dbpedia.org/resource/"/></p>
+        <p><label for="startLocation" class="neat">Start Location</label> <input type="text" name="as:origin" id="startLocation" class="neat" value="http://dbpedia.org/resource/"/></p>
+        <p><label for="endLocation" class="neat">End Location</label> <input type="text" name="as:target" id="endLocation" class="neat"  value="http://dbpedia.org/resource/"/></p>
         <p><label>Start: </label>
-          <select name="year" id="year">
+          <select name="startyear" id="startyear">
             <option value="2016" selected>2016</option>
             <option value="2016">2015</option>
           </select>
-          <select name="month" id="month">
+          <select name="startmonth" id="startmonth">
             <?for($i=1;$i<=12;$i++):?>
               <option value="<?=date("m", strtotime("2016-$i-01"))?>"<?=(date("n") == $i) ? " selected" : ""?>><?=date("M", strtotime("2016-$i-01"))?></option>
             <?endfor?>
           </select>
-          <select name="day" id="day">
+          <select name="startday" id="startday">
             <?for($i=1;$i<=31;$i++):?>
               <option value="<?=date("d", strtotime("2016-01-$i"))?>"<?=(date("j") == $i) ? " selected" : ""?>><?=date("d", strtotime("2016-01-$i"))?></option>
             <?endfor?>
           </select>
-          <input type="text" name="time" id="time" value="<?=date("H:i:s")?>" />
-          <input type="text" name="zone" id="zone" value="<?=date("P")?>" />
+          <input type="text" name="starttime" id="starttime" value="<?=date("H:i:s")?>" />
+          <input type="text" name="startzone" id="startzone" value="<?=date("P")?>" />
         </p>
         <p><label>End: </label>
-          <select name="year" id="year">
+          <select name="endyear" id="endyear">
             <option value="2016" selected>2016</option>
             <option value="2016">2015</option>
           </select>
-          <select name="month" id="month">
+          <select name="endmonth" id="endmonth">
             <?for($i=1;$i<=12;$i++):?>
               <option value="<?=date("m", strtotime("2016-$i-01"))?>"<?=(date("n") == $i) ? " selected" : ""?>><?=date("M", strtotime("2016-$i-01"))?></option>
             <?endfor?>
           </select>
-          <select name="day" id="day">
+          <select name="endday" id="endday">
             <?for($i=1;$i<=31;$i++):?>
               <option value="<?=date("d", strtotime("2016-01-$i"))?>"<?=(date("j") == $i) ? " selected" : ""?>><?=date("d", strtotime("2016-01-$i"))?></option>
             <?endfor?>
           </select>
-          <input type="text" name="time" id="time" value="<?=date("H:i:s")?>" />
-          <input type="text" name="zone" id="zone" value="<?=date("P")?>" />
+          <input type="text" name="endtime" id="endtime" value="<?=date("H:i:s")?>" />
+          <input type="text" name="endzone" id="endzone" value="<?=date("P")?>" />
         </p>
         <p><label for="cost" class="neat">Cost</label> <input type="text" name="blog:cost" id="cost" class="neat" /></p>
-        <p><label for="tags" class="neat">Tags</label> <input type="text" name="as:tag[]" id="tags"class="neat" /></p>
+        <p><label for="tags" class="neat">Tags</label> <input type="text" name="moretags" id="tags" class="neat" /></p>
         <p>
           <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">rsvp</label>
           <input type="checkbox" name="as:tag[]" value="event" id="tagevent" /> <label for="tagevent">event</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">attendee</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">organiser</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">speaker</label>
+          <input type="checkbox" name="as:tag[]" value="attendee" id="tagattendee" /> <label for="tagattendee">attendee</label>
+          <input type="checkbox" name="as:tag[]" value="organiser" id="tagorganiser" /> <label for="tagorganiser">organiser</label>
+          <input type="checkbox" name="as:tag[]" value="speaker" id="tagspeaker" /> <label for="tagspeaker">speaker</label>
         </p>
         <p>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">travel</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">journey</label>
+          <input type="checkbox" name="as:tag[]" value="travel" id="tagtravel" /> <label for="tagtravel">travel</label>
+          <input type="checkbox" name="as:tag[]" value="journey" id="tagjourney" /> <label for="tagjourney">journey</label>
         </p>
         <p>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">plane</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">flight</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">train</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">coach</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">bus</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">car</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">roadtrip</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">boat</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">ferry</label>
-          <input type="checkbox" name="as:tag[]" value="rsvp" id="tagrsvp" /> <label for="tagrsvp">bicycle</label>
+          <input type="checkbox" name="as:tag[]" value="plane" id="tagplane" /> <label for="tagplane">plane</label>
+          <input type="checkbox" name="as:tag[]" value="flight" id="tagflight" /> <label for="tagflight">flight</label>
+          <input type="checkbox" name="as:tag[]" value="train" id="tagtrain" /> <label for="tagtrain">train</label>
+          <input type="checkbox" name="as:tag[]" value="coach" id="tagcoach" /> <label for="tagcoach">coach</label>
+          <input type="checkbox" name="as:tag[]" value="bus" id="tagbus" /> <label for="tagbus">bus</label>
+          <input type="checkbox" name="as:tag[]" value="car" id="tagcar" /> <label for="tagcar">car</label>
+          <input type="checkbox" name="as:tag[]" value="roadtrip" id="tagroadtrip" /> <label for="tagroadtrip">roadtrip</label>
+          <input type="checkbox" name="as:tag[]" value="boat" id="tagboat" /> <label for="tagboat">boat</label>
+          <input type="checkbox" name="as:tag[]" value="ferry" id="tagferry" /> <label for="tagferry">ferry</label>
+          <input type="checkbox" name="as:tag[]" value="bicycle" id="tagbicycle" /> <label for="tagbicycle">bicycle</label>
         </p>
         <p><label>Published: </label>
           <select name="year" id="year">
