@@ -141,6 +141,7 @@ function form_to_json($post){
     }
   }
   
+  // Tags
   if(isset($post['moretags'])){
     if(!isset($post['as:tag'])) $post['as:tag'] = array();
     $values = explode(",", $post['moretags']);
@@ -151,6 +152,13 @@ function form_to_json($post){
   
   if(!in_array("rsvp", $data['as:tag'])){
     unset($data['blog:rsvp']);
+  }
+  
+  // Unset empties
+  foreach($post as $k => $v){
+    if(empty($v) || $v == ""){
+      unset($data[$k]);
+    }
   }
   
   $json = stripslashes(json_encode($data, JSON_PRETTY_PRINT));
@@ -172,13 +180,13 @@ function post_to_endpoint($json, $endpoint){
 }
 
 if(isset($_POST['create'])){
-  //if(isset($_SESSION['me'])){
+  if(isset($_SESSION['me'])){
     $endpoint = discover_endpoint($_SESSION['me']);
-    //$result = post_to_endpoint(form_to_json($_POST), $endpoint);
+    $result = post_to_endpoint(form_to_json($_POST), $endpoint);
     $result = form_to_json($_POST);
-  /*}else{
+  }else{
     $errors["Not signed in"] = "You need to sign in to post.";
-  }*/
+  }
 }
 
 ?>
@@ -190,7 +198,7 @@ if(isset($_POST['create'])){
     <link rel="stylesheet" type="text/css" href="https://apps.rhiaro.co.uk/css/main.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style type="text/css">
-      pre { max-height: 4em; overflow: auto; }
+      pre { max-height: 8em; overflow: auto; }
       #time, #zone, #starttime, #startzone, #endtime, #endzone { max-width: 6em; }
     </style>
   </head>
