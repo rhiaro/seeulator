@@ -186,13 +186,12 @@ function post_to_endpoint($json, $endpoint){
 }
 
 if(isset($_POST['create'])){
-  /*if(isset($_SESSION['me'])){
+  if(isset($_SESSION['me'])){
     $endpoint = discover_endpoint($_SESSION['me']);
     $result = post_to_endpoint(form_to_json($_POST), $endpoint);
   }else{
     $errors["Not signed in"] = "You need to sign in to post.";
-  }*/
-  var_dump(form_to_json($_POST));
+  }
 }
 
 ?>
