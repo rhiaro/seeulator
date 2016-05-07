@@ -103,6 +103,12 @@ function form_to_json($post){
   $context = context();
   $data = array_merge($context, $post);
   unset($data['create']);
+
+  foreach($data as $k => $v){
+    if((is_string($v) && strlen($v) < 1) || (is_array($v) && count($v) < 1)){
+      unset($data[$k]);
+    }
+  }
   
   // Datetimes
   $data['as:published'] = $post['year']."-".$post['month']."-".$post['day']."T".$post['time'].$post['zone'];
@@ -111,9 +117,10 @@ function form_to_json($post){
   unset($data['startyear']); unset($data['startmonth']); unset($data['startday']); unset($data['starttime']); unset($data['startzone']);
   $data['as:endTime'] = $post['endyear']."-".$post['endmonth']."-".$post['endday']."T".$post['endtime'].$post['endzone'];
   unset($data['endyear']); unset($data['endmonth']); unset($data['endday']); unset($data['endtime']); unset($data['endzone']);
-  
+
   // Types
   if(isset($data["as:origin"]) && isset($data["as:target"]) && isset($data["as:startTime"]) && isset($data["as:endTime"])){
+    var_dump($data["as:origin"]);
     $data["@type"] = array("as:Travel");
   }elseif(isset($data["as:startTime"]) && isset($data["as:endTime"]) && isset($data["as:location"])){
     if(isset($data["as:inReplyTo"])){
@@ -133,9 +140,15 @@ function form_to_json($post){
   }
   $multiuris = array("as:inReplyTo");
   foreach($multiuris as $muri){
-    unset($data[$muri]);
-    if(isset($post[$muri]) && strlen($post[$muri]) > 0) {
-      foreach($post[$muri] as $u){
+    if(isset($post[$muri])){
+      unset($data[$muri]);
+      if(is_array($post[$muri]) && count($post[$muri]) > 0) {
+        $muris = $post[$muri];
+      }elseif(is_string($post[$muri]) && strlen($post[$muri]) > 0){
+        $muris = explode(",", $post[$muri]);
+        $muris = array_map('trim', $muris);
+      }
+      foreach($muris as $u){
         $data[$muri][] = array("@id" => $u);
       }
     }
@@ -152,13 +165,6 @@ function form_to_json($post){
   
   if(!in_array("rsvp", $data['as:tag'])){
     unset($data['blog:rsvp']);
-  }
-  
-  // Unset empties
-  foreach($post as $k => $v){
-    if(empty($v) || $v == ""){
-      unset($data[$k]);
-    }
   }
   
   $json = stripslashes(json_encode($data, JSON_PRETTY_PRINT));
@@ -180,13 +186,13 @@ function post_to_endpoint($json, $endpoint){
 }
 
 if(isset($_POST['create'])){
-  if(isset($_SESSION['me'])){
+  /*if(isset($_SESSION['me'])){
     $endpoint = discover_endpoint($_SESSION['me']);
     $result = post_to_endpoint(form_to_json($_POST), $endpoint);
-    $result = form_to_json($_POST);
   }else{
     $errors["Not signed in"] = "You need to sign in to post.";
-  }
+  }*/
+  var_dump(form_to_json($_POST));
 }
 
 ?>
